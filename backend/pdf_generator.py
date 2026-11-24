@@ -1,4 +1,5 @@
 import os
+import shutil
 from datetime import datetime
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
@@ -10,8 +11,23 @@ from reportlab.lib.units import inch
 from PIL import Image as PILImage
 import pypdf
 
-UPLOADS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
-os.makedirs(UPLOADS_DIR, exist_ok=True)
+# Directorio de uploads con compatibilidad para Vercel Serverless (/tmp)
+if os.environ.get("VERCEL"):
+    UPLOADS_DIR = "/tmp/uploads"
+    os.makedirs(UPLOADS_DIR, exist_ok=True)
+    seed_uploads = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
+    if os.path.exists(seed_uploads):
+        try:
+            for item in os.listdir(seed_uploads):
+                s = os.path.join(seed_uploads, item)
+                d = os.path.join(UPLOADS_DIR, item)
+                if not os.path.exists(d) and os.path.isfile(s):
+                    shutil.copy2(s, d)
+        except Exception as e:
+            print(f"Error copiando uploads iniciales a /tmp en Vercel: {e}")
+else:
+    UPLOADS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
+    os.makedirs(UPLOADS_DIR, exist_ok=True)
 
 
 def create_annex_divider_pdf(
