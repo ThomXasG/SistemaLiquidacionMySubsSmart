@@ -38,7 +38,14 @@ const TERMINATION_CAUSES = [
   {
     cause: "Conclusión de la obra, período de labor o servicios",
     article: "Art. 169 numeral 2",
-    desc: "Cumplimiento del objeto o plazo convenido en contratos específicos (eventuales, por obra o temporada).",
+    desc: "Cumplimiento del objeto o plazo convenido en contratos específicos (eventuales, por obra cierta o temporada).",
+    requiresDesahucio: false,
+    requiresDismissal: false
+  },
+  {
+    cause: "Terminación dentro del período de prueba",
+    article: "Art. 15 Código del Trabajo",
+    desc: "Cualquiera de las partes puede dar por terminado libremente el contrato dentro del plazo máximo legal de 90 días de prueba, sin responsabilidad indemnizatoria ni bonificación de desahucio.",
     requiresDesahucio: false,
     requiresDismissal: false
   },
@@ -71,6 +78,106 @@ const TERMINATION_CAUSES = [
     requiresDismissal: false
   }
 ];
+
+export const getCauseCompatibility = (causeItem, contractType) => {
+  const cType = (contractType || 'Contrato Indefinido').toLowerCase();
+  const causeName = causeItem.cause.toLowerCase();
+
+  // 1. Período de Prueba (Art. 15 C.T.)
+  if (cType.includes('prueba')) {
+    if (causeName.includes('período de prueba') || causeName.includes('acuerdo') || causeName.includes('visto bueno concedido al empleador') || causeName.includes('muerte')) {
+      return {
+        enabled: true,
+        badge: 'Habilitada (Período de Prueba)',
+        badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        note: 'Art. 15 C.T.: Facultad de libre desvinculación sin indemnizaciones de despido ni desahucio.'
+      };
+    }
+    return {
+      enabled: false,
+      badge: 'Desactivada por Contrato a Prueba',
+      badgeColor: 'bg-red-50 text-red-600 border-red-200',
+      note: 'No aplicable: Durante los 90 días de prueba no rige indemnización de despido (Art. 188) ni bonificación de desahucio (Art. 185).'
+    };
+  }
+
+  // 2. Contrato por Obra Cierta / Servicio Determinado
+  if (cType.includes('obra') || cType.includes('servicio')) {
+    if (causeName.includes('conclusión de la obra')) {
+      return {
+        enabled: true,
+        badge: 'Causal Natural (Fin de Obra/Servicio)',
+        badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        note: 'Art. 169 num 2 C.T.: Culminación legal del objeto del contrato. No constituye despido intempestivo.'
+      };
+    }
+    if (causeName.includes('período de prueba')) {
+      return {
+        enabled: false,
+        badge: 'Desactivada por Obra Cierta',
+        badgeColor: 'bg-slate-100 text-slate-500 border-slate-200',
+        note: 'No aplica: Modalidad contractual específica por tarea o servicio.'
+      };
+    }
+    return {
+      enabled: true,
+      badge: 'Habilitada',
+      badgeColor: 'bg-blue-50 text-blue-700 border-blue-200',
+      note: 'Aplica según circunstancias de la terminación.'
+    };
+  }
+
+  // 3. Contrato Eventual o de Temporada
+  if (cType.includes('eventual') || cType.includes('temporada')) {
+    if (causeName.includes('conclusión') || causeName.includes('acuerdo')) {
+      return {
+        enabled: true,
+        badge: 'Causal Natural (Eventual/Temporada)',
+        badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        note: 'Art. 17 C.T.: Terminación por culminación del evento o plazo de temporada.'
+      };
+    }
+    if (causeName.includes('período de prueba')) {
+      return {
+        enabled: false,
+        badge: 'Desactivada',
+        badgeColor: 'bg-slate-100 text-slate-500 border-slate-200',
+        note: 'No aplicable a contratos eventuales de corta duración.'
+      };
+    }
+    return {
+      enabled: true,
+      badge: 'Habilitada',
+      badgeColor: 'bg-blue-50 text-blue-700 border-blue-200',
+      note: 'Si termina anticipadamente sin causa, se rige por Art. 181 C.T.'
+    };
+  }
+
+  // 4. Contrato Indefinido (Art. 14 C.T.)
+  if (causeName.includes('período de prueba')) {
+    return {
+      enabled: false,
+      badge: 'Desactivada (Superó Prueba)',
+      badgeColor: 'bg-slate-100 text-slate-500 border-slate-200',
+      note: 'No aplica: El colaborador ya goza de estabilidad laboral indefinida consolidada.'
+    };
+  }
+  if (causeName.includes('conclusión de la obra')) {
+    return {
+      enabled: false,
+      badge: 'Desactivada (Contrato Indefinido)',
+      badgeColor: 'bg-slate-100 text-slate-500 border-slate-200',
+      note: 'No aplica: Los contratos indefinidos no culminan por fin de obra cierta (Art. 14 C.T.).'
+    };
+  }
+
+  return {
+    enabled: true,
+    badge: 'Habilitada (Contrato Indefinido)',
+    badgeColor: 'bg-blue-50 text-blue-700 border-blue-200',
+    note: 'Aplica plenamente normativa del Código del Trabajo (Arts. 185 y 188).'
+  };
+};
 
 export default function NewProcess() {
   const navigate = useNavigate();
@@ -106,6 +213,18 @@ export default function NewProcess() {
   };
 
   const selectedEmployee = employees.find(e => e.id.toString() === selectedEmployeeId);
+
+  // Auto-ajustar causa si la actual queda deshabilitada al cambiar de trabajador/contrato
+  useEffect(() => {
+    if (!selectedEmployee) return;
+    const currentCompat = getCauseCompatibility(TERMINATION_CAUSES[selectedCauseIdx], selectedEmployee.contract_type);
+    if (!currentCompat.enabled) {
+      const firstEnabledIdx = TERMINATION_CAUSES.findIndex(c => getCauseCompatibility(c, selectedEmployee.contract_type).enabled);
+      if (firstEnabledIdx !== -1) {
+        setSelectedCauseIdx(firstEnabledIdx);
+      }
+    }
+  }, [selectedEmployeeId, employees]);
   const selectedCauseObj = TERMINATION_CAUSES[selectedCauseIdx];
 
   const handleSubmit = async (e) => {
@@ -177,7 +296,7 @@ export default function NewProcess() {
           </div>
 
           {selectedEmployee && (
-            <div className="p-3.5 bg-blue-50/50 rounded-xl border border-blue-100 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div className="p-3.5 bg-blue-50/50 rounded-xl border border-blue-100 grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
               <div>
                 <span className="text-[10px] text-slate-400 font-bold uppercase">Cargo</span>
                 <p className="font-bold text-slate-800">{selectedEmployee.position}</p>
@@ -185,6 +304,12 @@ export default function NewProcess() {
               <div>
                 <span className="text-[10px] text-slate-400 font-bold uppercase">Departamento</span>
                 <p className="font-bold text-slate-800">{selectedEmployee.department}</p>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase">Tipo de Contrato</span>
+                <p className="font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md inline-block mt-0.5 border border-indigo-200">
+                  {selectedEmployee.contract_type || 'Contrato Indefinido'}
+                </p>
               </div>
               <div>
                 <span className="text-[10px] text-slate-400 font-bold uppercase">Fecha de Ingreso</span>
@@ -200,54 +325,90 @@ export default function NewProcess() {
 
         {/* Step 2: Causa de terminación laboral */}
         <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-4">
-          <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-            <BookOpen className="w-5 h-5 text-blue-600" />
-            <h3 className="text-sm font-bold text-slate-800">2. Causa Legal de Terminación (Art. 169 C.T.)</h3>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2">
+              <BookOpen className="w-5 h-5 text-blue-600" />
+              <h3 className="text-sm font-bold text-slate-800">2. Causa Legal de Terminación (Art. 169 C.T.)</h3>
+            </div>
+            {selectedEmployee && (
+              <span className="text-xs font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-200">
+                Filtro activo para: {selectedEmployee.contract_type || 'Contrato Indefinido'}
+              </span>
+            )}
+          </div>
+
+          <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start gap-2">
+            <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <span>
+              <b>Reglas dinámicas por tipo de contrato:</b> Las opciones marcadas en verde/azul son legalmente aplicables a la modalidad <b>"{selectedEmployee?.contract_type || 'Contrato Indefinido'}"</b>. Las causales incompatibles han sido desactivadas automáticamente para garantizar el cumplimiento del Código del Trabajo ecuatoriano.
+            </span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {TERMINATION_CAUSES.map((item, idx) => (
-              <label
-                key={idx}
-                className={`p-3.5 rounded-xl border cursor-pointer transition-all flex flex-col justify-between space-y-2 ${
-                  selectedCauseIdx === idx
-                    ? 'bg-blue-50/70 border-blue-500 shadow-sm ring-1 ring-blue-500'
-                    : 'bg-slate-50/60 border-slate-200 hover:bg-slate-100/60'
-                }`}
-              >
-                <div className="flex items-start gap-2.5">
-                  <input
-                    type="radio"
-                    name="causeRadio"
-                    checked={selectedCauseIdx === idx}
-                    onChange={() => setSelectedCauseIdx(idx)}
-                    className="mt-1 text-blue-600 focus:ring-blue-500"
-                  />
-                  <div>
-                    <p className="text-xs font-bold text-slate-900">{item.cause}</p>
-                    <span className="text-[10px] text-blue-700 font-semibold">{item.article}</span>
-                    <p className="text-[11px] text-slate-500 mt-1 leading-snug">{item.desc}</p>
+            {TERMINATION_CAUSES.map((item, idx) => {
+              const compat = getCauseCompatibility(item, selectedEmployee?.contract_type);
+              const isSelected = selectedCauseIdx === idx;
+              return (
+                <div
+                  key={idx}
+                  onClick={() => {
+                    if (compat.enabled) setSelectedCauseIdx(idx);
+                  }}
+                  className={`p-3.5 rounded-xl border transition-all flex flex-col justify-between space-y-2.5 ${
+                    !compat.enabled
+                      ? 'opacity-40 grayscale-[50%] bg-slate-100/80 border-dashed border-slate-300 cursor-not-allowed select-none'
+                      : isSelected
+                      ? 'bg-blue-50/80 border-blue-500 shadow-sm ring-2 ring-blue-500/30 cursor-pointer'
+                      : 'bg-slate-50/70 border-slate-200 hover:bg-slate-100/70 cursor-pointer'
+                  }`}
+                >
+                  <div className="flex items-start gap-2.5">
+                    <input
+                      type="radio"
+                      name="causeRadio"
+                      disabled={!compat.enabled}
+                      checked={isSelected}
+                      onChange={() => compat.enabled && setSelectedCauseIdx(idx)}
+                      className="mt-1 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:cursor-not-allowed"
+                    />
+                    <div className="flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md border ${compat.badgeColor}`}>
+                          {compat.badge}
+                        </span>
+                      </div>
+                      <p className={`text-xs font-bold ${!compat.enabled ? 'text-slate-500 line-through' : 'text-slate-900'}`}>
+                        {item.cause}
+                      </p>
+                      <span className="text-[10px] text-blue-700 font-semibold">{item.article}</span>
+                      <p className="text-[11px] text-slate-500 mt-1 leading-snug">{item.desc}</p>
+                      
+                      {/* Explanatory note */}
+                      <p className="text-[10px] font-medium text-slate-600 mt-1.5 italic bg-white/60 p-1.5 rounded-md border border-slate-200/60">
+                        {compat.note}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-1 text-[10px] font-bold border-t border-slate-200/50">
+                    {item.requiresDesahucio ? (
+                      <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                        &check; Aplica Desahucio (Art. 185)
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">
+                        Sin Desahucio
+                      </span>
+                    )}
+                    {item.requiresDismissal && (
+                      <span className="text-red-700 bg-red-50 px-2 py-0.5 rounded-md border border-red-200">
+                        &check; Indemnización Despido (Art. 188)
+                      </span>
+                    )}
                   </div>
                 </div>
-
-                <div className="flex items-center gap-2 pt-1 text-[10px] font-bold">
-                  {item.requiresDesahucio ? (
-                    <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                      &check; Aplica Desahucio (Art. 185)
-                    </span>
-                  ) : (
-                    <span className="text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">
-                      Sin Desahucio
-                    </span>
-                  )}
-                  {item.requiresDismissal && (
-                    <span className="text-red-700 bg-red-50 px-2 py-0.5 rounded-md border border-red-200">
-                      &check; Indemnización Despido (Art. 188)
-                    </span>
-                  )}
-                </div>
-              </label>
-            ))}
+              );
+            })}
           </div>
         </div>
 

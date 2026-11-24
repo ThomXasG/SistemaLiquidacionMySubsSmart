@@ -207,6 +207,7 @@ def calculate_full_liquidation(
     exit_date_str: str,
     monthly_salary: float,
     cause: str,
+    contract_type: str = "Contrato Indefinido",
     region: str = "Sierra",
     sbu_value: float = 460.0,
     pending_salary_days: int = 0,
@@ -248,9 +249,11 @@ def calculate_full_liquidation(
         reserve_fund_val = round(monthly_salary * 0.0833, 2)
         reserve_fund_details = f"8.33% de ${monthly_salary:.2f} correspondiente al último período pendiente = ${reserve_fund_val:.2f}"
     
-    # 6. Desahucio (Art. 185)
-    # Aplica si la causa es Desahucio, o si hubo Despido Intempestivo (Art. 188 también acarrea bonificación por desahucio), o si se fuerza por override
+    # 6. Desahucio (Art. 185) y 7. Despido intempestivo (Art. 188)
+    # Reglas diferenciadas según el Código del Trabajo y modalidad contractual
     cause_lower = cause.lower()
+    contract_lower = (contract_type or "indefinido").lower()
+    
     applies_desahucio = False
     if "desahucio" in cause_lower or "despido" in cause_lower or "acuerdo" in cause_lower:
         if "desahucio" in cause_lower or "despido" in cause_lower:
@@ -259,29 +262,73 @@ def calculate_full_liquidation(
     if apply_desahucio_override is not None:
         applies_desahucio = apply_desahucio_override
         
-    if applies_desahucio and st["full_years"] >= 1:
-        desahucio_calc = calculate_desahucio_bonus(monthly_salary, st["full_years"])
-    else:
-        desahucio_calc = {
-            "value": 0.0,
-            "formula": "No aplica para esta causa o tiempo de servicio menor a 1 año",
-            "legal_basis": "Artículo 185 del Código del Trabajo",
-            "full_years": st["full_years"]
-        }
-        
-    # 7. Despido intempestivo (Art. 188)
     applies_dismissal = "despido" in cause_lower or "intempestivo" in cause_lower
     if apply_dismissal_override is not None:
         applies_dismissal = apply_dismissal_override
-        
-    if applies_dismissal:
-        dismissal_calc = calculate_untimely_dismissal(monthly_salary, st["years_float"])
-    else:
+
+    # --- REGLAS SEGÚN TIPO DE CONTRATO ---
+    # A) Período de Prueba (Art. 15 C.T.): Libre terminación sin despido ni desahucio
+    if "prueba" in contract_lower:
+        desahucio_calc = {
+            "value": 0.0,
+            "formula": "No aplica: Colaborador en período de prueba (Art. 15 del Código del Trabajo)",
+            "legal_basis": "Artículo 15 del Código del Trabajo",
+            "full_years": 0
+        }
         dismissal_calc = {
             "value": 0.0,
-            "formula": "No aplica (la terminación no fue por despido intempestivo intempestivo unilateral)",
-            "legal_basis": "Artículo 188 del Código del Trabajo"
+            "formula": "No aplica: Terminación dentro del período de prueba de 90 días sin responsabilidad indemnizatoria",
+            "legal_basis": "Artículo 15 del Código del Trabajo"
         }
+    # B) Contrato por Obra Cierta / Servicio Determinado (Art. 16.1 y 169 num 2 C.T.)
+    elif ("obra" in contract_lower or "servicio" in contract_lower) and ("conclusión" in cause_lower or "conclusion" in cause_lower or "cumplimiento" in cause_lower):
+        if applies_desahucio and st["full_years"] >= 1:
+            desahucio_calc = calculate_desahucio_bonus(monthly_salary, st["full_years"])
+        else:
+            desahucio_calc = {
+                "value": 0.0,
+                "formula": "No aplica por tiempo menor a 1 año",
+                "legal_basis": "Artículo 16.1 del Código del Trabajo",
+                "full_years": st["full_years"]
+            }
+        dismissal_calc = {
+            "value": 0.0,
+            "formula": "No aplica: Conclusión natural de la obra o servicio contratado (Art. 169 num 2 C.T.)",
+            "legal_basis": "Artículo 169 numeral 2 del Código del Trabajo"
+        }
+    # C) Contrato de Aprendizaje (Art. 157 C.T.)
+    elif "aprendizaje" in contract_lower:
+        desahucio_calc = {
+            "value": 0.0,
+            "formula": "No aplica a contratos de aprendizaje",
+            "legal_basis": "Artículo 157 del Código del Trabajo",
+            "full_years": 0
+        }
+        dismissal_calc = {
+            "value": 0.0,
+            "formula": "No aplica: Régimen especial de formación técnica (Art. 157 C.T.)",
+            "legal_basis": "Artículo 157 del Código del Trabajo"
+        }
+    # D) Contrato Indefinido u Ordinario
+    else:
+        if applies_desahucio and st["full_years"] >= 1:
+            desahucio_calc = calculate_desahucio_bonus(monthly_salary, st["full_years"])
+        else:
+            desahucio_calc = {
+                "value": 0.0,
+                "formula": "No aplica para esta causa o tiempo de servicio menor a 1 año",
+                "legal_basis": "Artículo 185 del Código del Trabajo",
+                "full_years": st["full_years"]
+            }
+            
+        if applies_dismissal:
+            dismissal_calc = calculate_untimely_dismissal(monthly_salary, st["years_float"])
+        else:
+            dismissal_calc = {
+                "value": 0.0,
+                "formula": "No aplica (la terminación no fue por despido intempestivo unilateral)",
+                "legal_basis": "Artículo 188 del Código del Trabajo"
+            }
         
     # Totales
     total_earnings = round(

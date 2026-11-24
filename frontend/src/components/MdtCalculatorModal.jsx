@@ -26,6 +26,7 @@ export default function MdtCalculatorModal({
     hire_date: initialHireDate,
     exit_date: initialExitDate,
     monthly_salary: initialSalary,
+    contract_type: employee?.contract_type || 'Contrato Indefinido',
     cause: initialCause,
     region: initialRegion,
     sbu_value: 460.0,
@@ -54,6 +55,7 @@ export default function MdtCalculatorModal({
     formData.hire_date,
     formData.exit_date,
     formData.monthly_salary,
+    formData.contract_type,
     formData.cause,
     formData.region,
     formData.sbu_value,
@@ -195,6 +197,24 @@ export default function MdtCalculatorModal({
                 <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
                 <span>Recalcular</span>
               </button>
+            </div>
+
+            {/* Modalidad de Contrato */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                Tipo de Contrato Laboral (Código del Trabajo)
+              </label>
+              <select
+                value={formData.contract_type}
+                onChange={(e) => setFormData({ ...formData, contract_type: e.target.value })}
+                className="w-full p-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-bold text-indigo-900"
+              >
+                <option value="Contrato Indefinido">Contrato Indefinido (Art. 14 C.T.)</option>
+                <option value="Contrato a Prueba">Contrato a Prueba (hasta 90 días - Art. 15 C.T.)</option>
+                <option value="Contrato por Obra Cierta">Contrato por Obra Cierta / Servicio Determinado</option>
+                <option value="Contrato Eventual">Contrato Eventual o de Temporada</option>
+                <option value="Contrato de Aprendizaje">Contrato de Aprendizaje (Art. 157 C.T.)</option>
+              </select>
             </div>
 
             {/* Causal de salida */}

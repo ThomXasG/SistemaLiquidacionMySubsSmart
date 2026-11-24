@@ -15,6 +15,7 @@ export default function MdtCalculatorPage() {
     hire_date: '2023-03-01',
     exit_date: '2026-10-31',
     monthly_salary: 800.0,
+    contract_type: 'Contrato Indefinido',
     cause: 'Desahucio solicitado por el trabajador',
     region: 'Sierra',
     sbu_value: 460.0,
@@ -58,6 +59,7 @@ export default function MdtCalculatorPage() {
         hire_date: proc.employee.hire_date || '2023-03-01',
         exit_date: proc.effective_date || '2026-10-31',
         monthly_salary: proc.employee.monthly_salary || 800.0,
+        contract_type: proc.employee.contract_type || 'Contrato Indefinido',
         cause: proc.cause || 'Desahucio solicitado por el trabajador',
         region: proc.employee.company?.region || 'Sierra',
         sbu_value: 460.0,
@@ -82,6 +84,7 @@ export default function MdtCalculatorPage() {
     formData.hire_date,
     formData.exit_date,
     formData.monthly_salary,
+    formData.contract_type,
     formData.cause,
     formData.region,
     formData.sbu_value,
@@ -231,6 +234,23 @@ export default function MdtCalculatorPage() {
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
               <span>Recalcular</span>
             </button>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Tipo de Contrato Laboral (Código del Trabajo)
+            </label>
+            <select
+              value={formData.contract_type}
+              onChange={(e) => setFormData({ ...formData, contract_type: e.target.value })}
+              className="w-full p-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl font-bold text-indigo-900 focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="Contrato Indefinido">Contrato Indefinido (Art. 14 C.T.)</option>
+              <option value="Contrato a Prueba">Contrato a Prueba (hasta 90 días - Art. 15 C.T.)</option>
+              <option value="Contrato por Obra Cierta">Contrato por Obra Cierta / Servicio Determinado</option>
+              <option value="Contrato Eventual">Contrato Eventual o de Temporada</option>
+              <option value="Contrato de Aprendizaje">Contrato de Aprendizaje (Art. 157 C.T.)</option>
+            </select>
           </div>
 
           <div>

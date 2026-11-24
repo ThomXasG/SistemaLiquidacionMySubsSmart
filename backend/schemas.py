@@ -168,6 +168,7 @@ class VacationControlResponse(VacationControlBase):
 class LiquidationCalculationInput(BaseModel):
     process_id: int
     calculation_date: Optional[str] = None
+    contract_type: Optional[str] = "Contrato Indefinido"
     region: Optional[str] = None # Sierra o Costa
     sbu_value: Optional[float] = 460.0
     pending_salary_days: Optional[int] = 0
@@ -189,6 +190,7 @@ class MdtSimulationInput(BaseModel):
     exit_date: str
     monthly_salary: float
     cause: str
+    contract_type: str = "Contrato Indefinido"
     region: str = "Sierra"
     sbu_value: float = 460.0
     pending_salary_days: int = 0
